@@ -110,9 +110,13 @@ public:
         /// (e.g. String, Array) cannot be visualised and must be rejected early.
         /// Nullable(<numeric>) is accepted: the Nullable wrapper is stripped before
         /// the numeric check, so compositions like avgOrNullSparkbar work correctly.
+        /// `Nullable(Nothing)` is accepted too: it is the result of `nothingNull`, which the factory
+        /// substitutes for the nested function when a forwarded argument is a bare `NULL`
+        /// (`avgSparkbar(...)(x, NULL)`). Every bucket of such a function is `NULL`, so the
+        /// sparkbar is empty.
         {
             WhichDataType result_which{removeNullable(nested_function->getResultType())};
-            if (!result_which.isNumber())
+            if (!result_which.isNumber() && !result_which.isNothing())
                 throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
                     "Aggregate function with {} suffix requires a nested function that returns "
                     "a numeric type, but '{}' returns {}",
@@ -125,6 +129,7 @@ public:
         /// `is_window_function` (`anyRespectNulls`, `anyLastRespectNulls`, ...), because those handle
         /// `NULL`s in their own arguments themselves. The key is not their argument, though, so the
         /// combinator has to handle a `NULL` key on its own: rows with a `NULL` key are skipped in `add`.
+        /// A bare `NULL` key (`Nullable(Nothing)`) skips every row, so it is accepted with signed bounds.
         const DataTypePtr key_type = removeNullable(arguments[0]);
         WhichDataType which{key_type};
 
@@ -190,7 +195,7 @@ public:
         /// numeric parameters with the unit already lost. Bucketing raw tick counts of possibly
         /// different units against each other would silently produce wrong results, so an interval
         /// x-axis must be converted to a number explicitly by the query.
-        if (which.isNativeInt() || which.isEnum())
+        if (which.isNativeInt() || which.isEnum() || which.isNothing())
         {
             const Int64 begin_x = getSignedBound<Int64>(params[n - 2], "begin_x", *key_type, getName());
             const Int64 end_x   = getSignedBound<Int64>(params[n - 1], "end_x", *key_type, getName());

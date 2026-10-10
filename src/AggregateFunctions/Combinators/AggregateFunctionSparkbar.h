@@ -6,6 +6,7 @@
 #include <AggregateFunctions/Combinators/AggregateFunctionNull.h>
 #include <AggregateFunctions/IAggregateFunction.h>
 #include <Columns/ColumnDecimal.h>
+#include <Columns/ColumnNothing.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnVector.h>
@@ -375,6 +376,13 @@ public:
             return true;
         };
 
+        /// A nested `nothingNull` (a bare `NULL` forwarded argument) returns `NULL` for every bucket.
+        if (checkAndGetColumn<ColumnNothing>(data_col))
+        {
+            render(assert_cast<ColumnString &>(to), levels);
+            return;
+        }
+
         const bool dispatched = dispatch(UInt8{}) || dispatch(UInt16{}) || dispatch(UInt32{}) || dispatch(UInt64{})
             || dispatch(UInt128{}) || dispatch(UInt256{})
             || dispatch(Int8{}) || dispatch(Int16{}) || dispatch(Int32{}) || dispatch(Int64{})
@@ -390,16 +398,17 @@ public:
         render(assert_cast<ColumnString &>(to), levels);
     }
 
+    /// Any argument may be a bare `NULL`: the own `Null` adapter below skips every row with a `NULL`
+    /// in it, so the result is the empty sparkbar. Without this, the generic `Null` combinator would
+    /// replace the whole function with `nothingNull` / `nothingUInt64` and return `NULL` or `0`
+    /// instead of a `String`.
     UnorderedSetWithMemoryTracking<size_t> getArgumentsThatCanBeOnlyNull() const override
     {
-        auto nested_arguments = nested_function->getArgumentsThatCanBeOnlyNull();
+        const size_t num_arguments = this->argument_types.size();
         UnorderedSetWithMemoryTracking<size_t> result;
-        result.reserve(nested_arguments.size() + 1);
-        result.insert(0);
-
-        for (const size_t argument : nested_arguments)
-            result.insert(argument + 1);
-
+        result.reserve(num_arguments);
+        for (size_t i = 0; i < num_arguments; ++i)
+            result.insert(i);
         return result;
     }
 
