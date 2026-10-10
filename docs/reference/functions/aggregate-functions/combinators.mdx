@@ -446,18 +446,22 @@ FROM numbers(5)
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+The buckets split the numeric range `[min_x, max_x]` into `width` equal parts; they do not follow calendar boundaries. For example, `countSparkbar(12, toDate('2023-01-01'), toDate('2023-12-31'))(EventDate)` produces 12 buckets of about 30 days each, not one bucket per month. To get one bucket per calendar month, use the month number as the x-axis:
+
 ```sql
 SELECT
-    countSparkbar(12, toDate('2023-01-01'), toDate('2023-12-31'))(EventDate) AS events_by_month
+    countSparkbar(12, 1, 12)(toMonth(EventDate)) AS events_by_month
 FROM hits
+WHERE toYear(EventDate) = 2023
 ```
 
 ```sql
 -- Compare unique visitors per month for a set of URLs
 SELECT
     URL,
-    uniqSparkbar(12, toDate('2023-01-01'), toDate('2023-12-31'))(EventDate, UserID) AS unique_visitors
+    uniqSparkbar(12, 1, 12)(toMonth(EventDate), UserID) AS unique_visitors
 FROM hits
+WHERE toYear(EventDate) = 2023
 GROUP BY URL
 ORDER BY uniq(UserID) DESC
 LIMIT 10
