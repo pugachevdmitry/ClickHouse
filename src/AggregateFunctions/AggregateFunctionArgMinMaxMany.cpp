@@ -5,6 +5,7 @@
 #include <Common/VectorWithMemoryTracking.h>
 #include <Core/Field.h>
 #include <DataTypes/DataTypeArray.h>
+#include <DataTypes/TypeTree.h>
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 
@@ -269,8 +270,7 @@ public:
                     data_type_val->getName(),
                     getName());
         };
-        check_val_type(*data_type_val);
-        data_type_val->forEachChild(check_val_type);
+        forEachInTypeTree(*data_type_val, check_val_type);
     }
 
     String getName() const override
